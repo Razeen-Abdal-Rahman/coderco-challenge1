@@ -3,10 +3,11 @@ USER=appuser
 DIR=/opt/coderco-app
 SVR_FILE=server.py
 ENV_FILE=.env
-LOG_FILE=/var/log/coderco-app.log
+LOG_FILE=coderco-app.logrotae
+LOG_PATH=/var/log/coderco-app.log
 SVC_FILE=coderco-app.service
-HEALTHCHECK_SCRIPT=/usr/local/bin/coderco-healthcheck.sh
-CRONJOB_FILE=/etc/cron.d/coderco-healthcheck
+HEALTHCHECK_SCRIPT_PATH=/usr/local/bin/coderco-healthcheck.sh
+CRONJOB_PATH=/etc/cron.d/coderco-healthcheck
 
 ##phony allows the use of a single makefile (all targets should be executed when called and are not seperate files)
 .PHONY: all install user directory server start_service check_service logrotate fierwall healthcheck cron clean
@@ -72,14 +73,7 @@ check_service:
 ##logrotate target, this creates configures logrotae defineing how long logs should be stored
 logrotate:
 	@echo "Creating logrotate config..."
-	echo "$(LOG_FILE) {" | sudo tee /etc/logrotate.d/coderco-app
-	echo "    daily" | sudo tee -a /etc/logrotate.d/coderco-app
-	echo "    rotate 7" | sudo tee -a /etc/logrotate.d/coderco-app
-	echo "    compress" | sudo tee -a /etc/logrotate.d/coderco-app
-	echo "    missingok" | sudo tee -a /etc/logrotate.d/coderco-app
-	echo "    notifempty" | sudo tee -a /etc/logrotate.d/coderco-app
-	echo "    create 640 $(USER) $(USER)" | sudo tee -a /etc/logrotate.d/coderco-app
-	echo "}" | sudo tee -a /etc/logrotate.d/coderco-app
+	sudo cp $(LOG_FILE) /etc/logrotae.d/coderco-app
 	@echo "✔ logrotate config created"
 
 #fierwall target, this checks if ufw is installed if it is a rule will be created ensuring only localhost acess on port 8080
@@ -108,21 +102,21 @@ healthcheck:
 #cron target, this creates a cron job to run the healthcheck script every 5 minuets
 cron:
 	@echo "Setting up cronjob for healthcheck every 5 minutes..."
-	echo "*/5 * * * * root $(HEALTHCHECK_SCRIPT)" | sudo tee $(CRONJOB_FILE)
-	sudo chmod 644 $(CRONJOB_FILE)
+	echo "*/5 * * * * root $(HEALTHCHECK_SCRIPT)" | sudo tee $(CRONJOB_PATH)
+	sudo chmod 644 $(CRONJOB_PATH)
 	@echo "✔ cronjob created"
 
 #clean target, this removes everything created using the other commands
 clean:
 	sudo systemctl stop coderco-app || true
 	sudo systemctl disable coderco-app || true
-	sudo rm -f $(SERVICE_FILE)
-	sudo rm -rf $(APP_DIR)
+	sudo rm -f /etc/systemd/system/coderco-app.service
+	sudo rm -rf $(DIR)
 	sudo rm -f $(LOG_FILE)
 	sudo rm -f /etc/logrotate.d/coderco-app
-	sudo rm -f $(HEALTHCHECK_SCRIPT)
-	sudo rm -f $(CRONJOB_FILE)
+	sudo rm -f /usr/local/bin/coderco-healthcheck.sh
+	sudo rm -f $(CRONJOB_PATH)
 	sudo ufw delete allow from 127.0.0.1 to any port 8080 || true
 	sudo ufw delete deny 8080 || true
-	sudo userdel -r $(APP_USER) || true
+	sudo userdel -r $(USER) || true
 	@echo "✔ cleanup scuessfull"

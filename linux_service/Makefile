@@ -4,14 +4,17 @@ DIR=/opt/coderco-app
 SVR_FILE=server.py
 ENV_FILE=.env
 LOG_FILE=/var/log/coderco-app.log
-SVC_FILE=/etc/systemd/system/coderco-app.service
+SVC_FILE=coderco-app.service
 HEALTHCHECK_SCRIPT=/usr/local/bin/coderco-healthcheck.sh
 CRONJOB_FILE=/etc/cron.d/coderco-healthcheck
 
+##phony allows the use of a single makefile (all targets should be executed when called and are not seperate files)
 .PHONY: all install user directory server start_service check_service logrotate fierwall healthcheck cron clean
 
+##running all will install the service, fierwall, healthcheck and healthcheck cronjob
 all: install fierwall healthcheck cron
 
+##running insall on it's own will complete all essential steps for the service to be running
 install: user directory server systemd start_service check_service logrotate
 
 ##user target, this creates the user if it doesn't exisit. If it does exist nothing is done
@@ -45,21 +48,7 @@ server:
 ##systemd target, this creates the .service file
 systemd:
 	@echo "Creating systemd service..."
-	echo "[Unit]" | sudo tee $(SVC_FILE)
-	echo "Description=CoderCo App Service" | sudo tee -a $(SVC_FILE)
-	echo "After=network.target" | sudo tee -a $(SVC_FILE)
-	echo "" | sudo tee -a $(SVC_FILE)
-	echo "[Service]" | sudo tee -a $(SVC_FILE)
-	echo "User=$(USER)" | sudo tee -a $(SVC_FILE)
-	echo "WorkingDirectory=$(DIR)" | sudo tee -a $(SVC_FILE)
-	echo "ExecStart=/usr/bin/env python3 $(DIR)/$(SVR_FILE)" | sudo tee -a $(SVC_FILE)
-	echo "EnvironmentFile=$(DIR)/.env" | sudo tee -a $(SVC_FILE)
-	echo "Restart=on-failure" | sudo tee -a $(SVC_FILE)
-	echo "StandardOutput=append:$(LOG_FILE)" | sudo tee -a $(SVC_FILE)
-	echo "StandardError=append:$(LOG_FILE)" | sudo tee -a $(SVC_FILE)
-	echo "" | sudo tee -a $(SVC_FILE)
-	echo "[Install]" | sudo tee -a $(SVC_FILE)
-	echo "WantedBy=multi-user.target" | sudo tee -a $(SVC_FILE)
+	sudo cp $(SVC_FILE) /etc/systemd/system/coderco-app.service
 	@echo "✔ systemd service created"
 
 ##start service target, this starts the coderco-app service which was just created

@@ -6,6 +6,7 @@ ENV_FILE=.env
 LOG_FILE=coderco-app.logrotae
 LOG_PATH=/var/log/coderco-app.log
 SVC_FILE=coderco-app.service
+HC_SH_FILE=coderco-healthcheck.sh
 HEALTHCHECK_SCRIPT_PATH=/usr/local/bin/coderco-healthcheck.sh
 CRONJOB_PATH=/etc/cron.d/coderco-healthcheck
 
@@ -91,18 +92,13 @@ firewall:
 #healthcheck target, this creates a script to check if the service is running
 healthcheck:
 	@echo "Creating healthcheck script..."
-	echo '#!/bin/bash' | sudo tee $(HEALTHCHECK_SCRIPT)
-	echo 'if ! curl --fail http://localhost:8080 > /dev/null 2>&1; then' | sudo tee -a $(HEALTHCHECK_SCRIPT)
-	echo '  echo "$(date): Service not responding, restarting..." >> $(LOG_FILE)' | sudo tee -a $(HEALTHCHECK_SCRIPT)
-	echo '  sudo systemctl restart coderco-app' | sudo tee -a $(HEALTHCHECK_SCRIPT)
-	echo 'fi' | sudo tee -a $(HEALTHCHECK_SCRIPT)
-	sudo chmod +x $(HEALTHCHECK_SCRIPT)
+	sudo cp $(HC_SH_FILE) $(HEALTHCHECK_SCRIPT_PATH)
 	@echo "✔ healthcheck script created"
 
 #cron target, this creates a cron job to run the healthcheck script every 5 minuets
 cron:
 	@echo "Setting up cronjob for healthcheck every 5 minutes..."
-	echo "*/5 * * * * root $(HEALTHCHECK_SCRIPT)" | sudo tee $(CRONJOB_PATH)
+	echo "*/5 * * * * root $(HEALTHCHECK_SCRIPT_PATH)" | sudo tee $(CRONJOB_PATH)
 	sudo chmod 644 $(CRONJOB_PATH)
 	@echo "✔ cronjob created"
 
@@ -112,9 +108,9 @@ clean:
 	sudo systemctl disable coderco-app || true
 	sudo rm -f /etc/systemd/system/coderco-app.service
 	sudo rm -rf $(DIR)
-	sudo rm -f $(LOG_FILE)
+	sudo rm -f $(LOG_PATH)
 	sudo rm -f /etc/logrotate.d/coderco-app
-	sudo rm -f /usr/local/bin/coderco-healthcheck.sh
+	sudo rm -f $(HEALTHCHECK_SCRIPT_PATH)
 	sudo rm -f $(CRONJOB_PATH)
 	sudo ufw delete allow from 127.0.0.1 to any port 8080 || true
 	sudo ufw delete deny 8080 || true

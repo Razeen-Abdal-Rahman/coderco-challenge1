@@ -3,13 +3,23 @@ USER=appuser
 DIR=/opt/coderco-app
 SVR_FILE=server.py
 ENV_FILE=.env
+LOG_FILE=/var/log/coderco-app.log
+SVC_FILE=/etc/systemd/system/coderco-app.service
+HEALTHCHECK_SCRIPT=/usr/local/bin/coderco-healthcheck.sh
+CRONJOB_FILE=/etc/cron.d/coderco-healthcheck
+
+.PHONY: all install user directory server start_service check_service logrotate fierwall healthcheck cron clean
+
+all: install fierwall healthcheck cron
+
+install: user directory server systemd start_service check_service logrotate
 
 ##user target, this creates the user if it doesn't exisit. If it does exist nothing is done
 user:
 	@echo "creating user $(USER)..."
 	@if ! id -u $(USER) >/dev/null 2>&1; then \
 		sudo useradd -r -s /bin/false $(USER); \
-		echo "User $(USER) created."; \
+		echo "✔ User $(USER) created."; \
 	else \
 		echo "User $(USER) already exists."; \
 	fi
@@ -22,7 +32,7 @@ directory:
 	@echo "granting access to user $(USER)..."
 	sudo chown $(USER):$(USER) $(DIR)
 	sudo chmod 750 $(DIR)
-	@echo "access granted"
+	@echo "✔ access granted"
 
 ##server target, this adds the server and env files to the VM and gives ownership to the previously created user
 server:
@@ -30,8 +40,100 @@ server:
 	sudo cp $(SVR_FILE) $(DIR)/
 	sudo cp $(ENV_FILE) $(DIR)/
 	sudo chown $(USER):$(USER) $(DIR)/$(SVR_FILE) $(DIR)/$(ENV_FILE)
-	@echo "server files sucessfully installed"
+	@echo "✔ server files sucessfully installed"
+
+##systemd target, this creates the .service file
+systemd:
+	@echo "Creating systemd service..."
+	echo "[Unit]" | sudo tee $(SVC_FILE)
+	echo "Description=CoderCo App Service" | sudo tee -a $(SVC_FILE)
+	echo "After=network.target" | sudo tee -a $(SVC_FILE)
+	echo "" | sudo tee -a $(SVC_FILE)
+	echo "[Service]" | sudo tee -a $(SVC_FILE)
+	echo "User=$(USER)" | sudo tee -a $(SVC_FILE)
+	echo "WorkingDirectory=$(DIR)" | sudo tee -a $(SVC_FILE)
+	echo "ExecStart=/usr/bin/env python3 $(DIR)/$(SVR_FILE)" | sudo tee -a $(SVC_FILE)
+	echo "EnvironmentFile=$(DIR)/.env" | sudo tee -a $(SVC_FILE)
+	echo "Restart=on-failure" | sudo tee -a $(SVC_FILE)
+	echo "StandardOutput=append:$(LOG_FILE)" | sudo tee -a $(SVC_FILE)
+	echo "StandardError=append:$(LOG_FILE)" | sudo tee -a $(SVC_FILE)
+	echo "" | sudo tee -a $(SVC_FILE)
+	echo "[Install]" | sudo tee -a $(SVC_FILE)
+	echo "WantedBy=multi-user.target" | sudo tee -a $(SVC_FILE)
+	@echo "✔ systemd service created"
+
+##start service target, this starts the coderco-app service which was just created
+start_service:
+	@echo "Reloading systemd and starting service..."
+	sudo systemctl daemon-reexec
+	sudo systemctl daemon-reload
+	sudo systemctl enable coderco-app
+	sudo touch $(LOG_FILE)
+	sudo chown $(USER):$(USER) $(LOG_FILE)
+	sudo systemctl start coderco-app
+	@echo "✔ coderco-app started"
 
 
+##check service target, this verifies the service is responding on the correct port and checks the systemd service is running
+check_service:
+	@echo "Checking service status..."
+	curl --fail http://localhost:8080 && echo "✔ Service responded with 200 OK"
+	sudo systemctl status coderco-app --no-pager && echo "✔ Service is running"
 
+##logrotate target, this creates configures logrotae defineing how long logs should be stored
+logrotate:
+	@echo "Creating logrotate config..."
+	echo "$(LOG_FILE) {" | sudo tee /etc/logrotate.d/coderco-app
+	echo "    daily" | sudo tee -a /etc/logrotate.d/coderco-app
+	echo "    rotate 7" | sudo tee -a /etc/logrotate.d/coderco-app
+	echo "    compress" | sudo tee -a /etc/logrotate.d/coderco-app
+	echo "    missingok" | sudo tee -a /etc/logrotate.d/coderco-app
+	echo "    notifempty" | sudo tee -a /etc/logrotate.d/coderco-app
+	echo "    create 640 $(USER) $(USER)" | sudo tee -a /etc/logrotate.d/coderco-app
+	echo "}" | sudo tee -a /etc/logrotate.d/coderco-app
+	@echo "✔ logrotate config created"
 
+#fierwall target, this checks if ufw is installed if it is a rule will be created ensuring only localhost acess on port 8080
+firewall:
+	@echo "Configuring UFW to allow only localhost on port 8080..."
+	@if ! command -v ufw >/dev/null 2>&1; then \
+		echo "ufw is not installed. Please install ufw and rerun."; exit 1; \
+	fi
+	sudo ufw allow from 127.0.0.1 to any port 8080
+	sudo ufw deny 8080
+	sudo ufw reload || true
+	sudo ufw status verbose
+	@echo "✔ firewall configured"
+
+#healthcheck target, this creates a script to check if the service is running
+healthcheck:
+	@echo "Creating healthcheck script..."
+	echo '#!/bin/bash' | sudo tee $(HEALTHCHECK_SCRIPT)
+	echo 'if ! curl --fail http://localhost:8080 > /dev/null 2>&1; then' | sudo tee -a $(HEALTHCHECK_SCRIPT)
+	echo '  echo "$(date): Service not responding, restarting..." >> $(LOG_FILE)' | sudo tee -a $(HEALTHCHECK_SCRIPT)
+	echo '  sudo systemctl restart coderco-app' | sudo tee -a $(HEALTHCHECK_SCRIPT)
+	echo 'fi' | sudo tee -a $(HEALTHCHECK_SCRIPT)
+	sudo chmod +x $(HEALTHCHECK_SCRIPT)
+	@echo "✔ healthcheck script created"
+
+#cron target, this creates a cron job to run the healthcheck script every 5 minuets
+cron:
+	@echo "Setting up cronjob for healthcheck every 5 minutes..."
+	echo "*/5 * * * * root $(HEALTHCHECK_SCRIPT)" | sudo tee $(CRONJOB_FILE)
+	sudo chmod 644 $(CRONJOB_FILE)
+	@echo "✔ cronjob created"
+
+#clean target, this removes everything created using the other commands
+clean:
+	sudo systemctl stop coderco-app || true
+	sudo systemctl disable coderco-app || true
+	sudo rm -f $(SERVICE_FILE)
+	sudo rm -rf $(APP_DIR)
+	sudo rm -f $(LOG_FILE)
+	sudo rm -f /etc/logrotate.d/coderco-app
+	sudo rm -f $(HEALTHCHECK_SCRIPT)
+	sudo rm -f $(CRONJOB_FILE)
+	sudo ufw delete allow from 127.0.0.1 to any port 8080 || true
+	sudo ufw delete deny 8080 || true
+	sudo userdel -r $(APP_USER) || true
+	@echo "✔ cleanup scuessfull"

@@ -3,7 +3,7 @@ USER=appuser
 DIR=/opt/coderco-app
 SVR_FILE=server.py
 ENV_FILE=.env
-LOG_FILE=coderco-app.logrotae
+LOG_FILE=coderco-app.logrotate
 LOG_PATH=/var/log/coderco-app.log
 SVC_FILE=coderco-app.service
 HC_SH_FILE=coderco-healthcheck.sh
@@ -14,7 +14,7 @@ CRONJOB_PATH=/etc/cron.d/coderco-healthcheck
 .PHONY: all install user directory server start_service check_service logrotate fierwall healthcheck cron clean
 
 ##running all will install the service, fierwall, healthcheck and healthcheck cronjob
-all: install fierwall healthcheck cron
+all: install firewall healthcheck cron
 
 ##running insall on it's own will complete all essential steps for the service to be running
 install: user directory server systemd start_service check_service logrotate
@@ -56,7 +56,6 @@ systemd:
 ##start service target, this starts the coderco-app service which was just created
 start_service:
 	@echo "Reloading systemd and starting service..."
-	sudo systemctl daemon-reexec
 	sudo systemctl daemon-reload
 	sudo systemctl enable coderco-app
 	sudo touch $(LOG_FILE)

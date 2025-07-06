@@ -58,7 +58,7 @@ start_service:
 	@echo "Reloading systemd and starting service..."
 	sudo systemctl daemon-reload
 	sudo systemctl enable coderco-app
-	sudo touch $(LOG_FILE)
+	sudo touch $(LOG_PATH)
 	sudo chown $(USER):$(USER) $(LOG_FILE)
 	sudo systemctl start coderco-app
 	@echo "✔ coderco-app started"

@@ -75,7 +75,7 @@ check_service:
 ##logrotate target, this creates configures logrotae defineing how long logs should be stored
 logrotate:
 	@echo "Creating logrotate config..."
-	sudo cp $(LOG_FILE) /etc/logrotae.d/coderco-app
+	sudo cp $(LOG_FILE) /etc/logrotate.d/coderco-app
 	@echo "✔ logrotate config created"
 
 #fierwall target, this checks if ufw is installed if it is a rule will be created ensuring only localhost acess on port 8080

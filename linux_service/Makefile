@@ -66,6 +66,8 @@ start_service:
 
 ##check service target, this verifies the service is responding on the correct port and checks the systemd service is running
 check_service:
+	@echo "Waiting 2 seconds for server to start..."
+	sleep 2
 	@echo "Checking service status..."
 	curl --fail http://localhost:8080 && echo "✔ Service responded with 200 OK"
 	sudo systemctl status coderco-app --no-pager && echo "✔ Service is running"

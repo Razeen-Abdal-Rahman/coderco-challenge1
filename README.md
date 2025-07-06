@@ -1,6 +1,6 @@
 # CoderCo App Setup
 
-This project sets up a secure and reliable Python HTTP server using systemd, log rotation, firewall rules, and a healthcheck cronjob — all configured and installed using a single `Makefile`.
+This project sets up a secure and reliable Python HTTP server using systemd, log rotation, firewall rules, and a healthcheck cronjob, all configured and installed using a single `Makefile`.
 
 ---
 
